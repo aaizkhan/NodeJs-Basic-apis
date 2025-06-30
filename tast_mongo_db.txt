@@ -1,0 +1,7 @@
+How Mongo db work with node js
+
+1) Schema: first we create Schema to define the structure
+         -> Model   (create model using schema)
+         -> CURD Operation using Model
+
+

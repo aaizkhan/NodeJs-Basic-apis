@@ -1,101 +1,109 @@
-const express= require("express");
-const res = require("express/lib/response");
-const { get } = require("express/lib/response");
-const fs=require("fs");
-const users= require("./MOCK_DATA.json");
+const express = require("express");
+const fs = require("fs");
+// const users = require("./MOCK_DATA.json");
+const mongoose = require("mongoose");
 
-const app=express();
-const PORT=8000;
+const app = express();
+const PORT = 8000;
 
+//Connection with mongoDb
+mongoose
+  .connect("mongodb://127.0.0.1:27017/my-practice-1")
+  .then(() => console.log("MongoDb Connected"))
+  .catch((err) => console.log("MongoDb Error in Connectiong", err));
 
-app.use(express.urlencoded({extended:false}));
+// Schema
+const userSchema = mongoose.Schema(
+  {
+    firstName: {
+      type: String,
+      required: true,
+    },
+    lastName: {
+      type: String,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    lastName: {
+      type: String,
+    },
+    gender: {
+      type: String,
+    },
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.model("user", userSchema);
+
+app.use(express.urlencoded({ extended: false }));
 
 // Middleware
-app.use((req,res,next)=>{
-  console.log("This Middleware 1")
+app.use((req, res, next) => {
+  console.log("This Middleware 1");
   next();
 });
 
 // Routes
-app.get("/users",(request,response)=>{
-    const html=`
+app.get("/users", async (request, response) => {
+  const dbAllUsers = await User.find({});
+  const html = `
     <ul>
-    ${users.map((user)=> `<li>${user.first_name}</li>`).join("")}
+    ${dbAllUsers
+      .map((user) => `<li>${user.firstName} - ${user.email}</li>`)
+      .join("")}
     </ul>
     `;
-    response.send(html);
-   });
-
+  response.send(html);
+});
 
 // REST APIs
 
 // Get All Users
-app.get("/api/users",(request,response)=>{
-    return response.json(users);
-
+app.get("/api/users", async (request, response) => {
+  const allDbUser = await User.find({});
+  return response.json(allDbUser);
 });
-
-
 
 // Get Single User by Id
-app.route("/api/users/:id").get((request,response)=>{
-    const id= Number(request.params.id);
-    const user=users.find((user)=> user.id===id);
-    if(!user) return response.status(404).json({"status":"no user found"});
+app
+  .route("/api/users/:id")
+  .get(async (request, response) => {
+    const user = await User.findById(request.params.id);
+    if (!user) return response.status(404).json({ status: "no user found" });
     return response.json(user);
-}).patch((request,response)=>{
-    
-    const userId = parseInt(request.params.id);
-    const updates = request.body;
-    const userIndex = users.findIndex(user => user.id === userId);
-    users[userIndex] = { ...users[userIndex], ...updates };
-
-    fs.writeFile("./MOCK_DATA.json",JSON.stringify(users),(err,data)=>{
-        return response.json({"status":"Success",id:users.length});
+  })
+  .patch(async (request, response) => {
+    await User.findByIdAndUpdate(request.params.id, {
+      lastName: request.body.lastName,
     });
-})
-.delete((req,res)=>{
-
+    return response.json({ status: "success" });
+  })
+  .delete(async (req, res) => {
     try {
-        const userId = parseInt(req.params.id);
-        const data =   fs.readFile("./MOCK_DATA.json", 'utf8');
-        let users = JSON.parse(data);
-        
-        const initialLength = users.length;
-        users = users.filter(user => user.id !== userId);
-        
-        if (users.length === initialLength) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-          fs.writeFile("./MOCK_DATA.json", JSON.stringify(users, null, 2));
-        res.json({ message: `User with ID ${userId} deleted successfully` });
+      await User.findByIdAndDelete(req.params.id);
+      return res.json({ status: "success" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
-    }  
-});
- 
-
+      res.status(500).json({ error: err.message });
+    }
+  });
 
 // POST users
-app.post("/api/users",(request,response)=>{
-    
-    const body=request.body;
-    if(!body || !body.first_name || !body.last_name || !body.email || !body.gender || !body.job_title){
-        return response.status(400).json({"status":"All Field Required"});
-    }
-    users.push({...body,id:users.length+1});
-    fs.writeFile("./MOCK_DATA.json",JSON.stringify(users),(err,data)=>{
-        return response.json({"status":"Success",id:users.length});
-    });
+app.post("/api/users", async (request, response) => {
+  const body = request.body;
+
+  const result = await User.create({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    email: body.email,
+    gender: body.gender,
+    job_title: body.job_title,
+  });
+  console.log("Result : ", result);
+  return response.status(201).json({ message: "Success" });
 });
- 
 
- 
-
-
-
-
-
-
-app.listen(PORT,()=> console.log("Server Started"));
+app.listen(PORT, () => console.log("Server Started"));
